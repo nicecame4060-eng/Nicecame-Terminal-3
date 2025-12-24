@@ -116,12 +116,46 @@ async function init() {
   
   ipcRenderer.send('terminal-create');
   
+  // Drag & Drop файлов - вставляет путь
+  document.getElementById('terminal').addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  
+  document.getElementById('terminal').addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const paths = Array.from(files).map(f => `"${f.path}"`).join(' ');
+      ipcRenderer.send('terminal-input', paths);
+    }
+  });
+  
+  // Звук при завершении команды
+  let lastLine = '';
+  let commandRunning = false;
+  
   ipcRenderer.on('terminal-data', (event, data) => {
     term.write(data);
+    
+    // Проверяем завершение команды (появление промпта)
+    if (commandRunning && data.includes('>')) {
+      commandRunning = false;
+      if (config.soundEnabled !== false) {
+        playNotificationSound();
+      }
+    }
   });
   
   term.onData((data) => {
     ipcRenderer.send('terminal-input', data);
+    if (data === '\r') commandRunning = true;
+    
+    // Звук печатания при каждом нажатии
+    if (data.length === 1 && data.charCodeAt(0) >= 32) {
+      playTypingSound();
+    }
   });
   
   // Удаление выделенного текста по Delete/Backspace
@@ -129,7 +163,6 @@ async function init() {
     if ((e.key === 'Delete' || e.key === 'Backspace') && e.type === 'keydown') {
       const selection = term.getSelection();
       if (selection && selection.length > 0) {
-        // Отправляем backspace для каждого символа выделения
         for (let i = 0; i < selection.length; i++) {
           ipcRenderer.send('terminal-input', '\b \b');
         }
@@ -149,6 +182,9 @@ async function init() {
   });
   
   setTimeout(() => fitAddon.fit(), 100);
+  
+  // Применяем сохранённую фоновую картинку
+  applyBgImage();
 }
 
 function minimize() { ipcRenderer.send('window-minimize'); }
@@ -165,27 +201,25 @@ function closeSettings() {
 
 function loadSettingsForm() {
   document.getElementById('fontSize').value = config.fontSize || 14;
-  document.getElementById('fontFamily').value = config.fontFamily || 'Consolas';
-  document.getElementById('cursorColor').value = config.colors?.cursor || '#ffffff';
-  document.getElementById('colorRed').value = config.colors?.red || '#e94560';
-  document.getElementById('colorGreen').value = config.colors?.green || '#4ade80';
-  document.getElementById('colorYellow').value = config.colors?.yellow || '#228B22';
+  document.getElementById('opacity').value = config.opacity || 0.85;
 }
 
 async function saveSettings() {
   const newConfig = {
+    ...config,
     fontSize: parseInt(document.getElementById('fontSize').value),
-    fontFamily: document.getElementById('fontFamily').value,
-    colors: {
-      ...config.colors,
-      cursor: document.getElementById('cursorColor').value,
-      red: document.getElementById('colorRed').value,
-      green: document.getElementById('colorGreen').value,
-      yellow: document.getElementById('colorYellow').value
-    }
+    opacity: parseFloat(document.getElementById('opacity').value)
   };
   
   config = await ipcRenderer.invoke('set-config', newConfig);
+  
+  // Применяем размер шрифта
+  term.options.fontSize = newConfig.fontSize;
+  fitAddon.fit();
+  
+  // Применяем прозрачность
+  applyOpacity(newConfig.opacity);
+  
   closeSettings();
 }
 
@@ -196,5 +230,130 @@ document.getElementById('settingsModal').addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key === ',') openSettings();
 });
+
+// Функция воспроизведения звука уведомления
+function playNotificationSound() {
+  const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2JkI2Coverage');
+  audio.volume = 0.3;
+  audio.play().catch(() => {});
+}
+
+// Глобальный AudioContext для звуков
+let audioCtx = null;
+function getAudioContext() {
+  if (!audioCtx || audioCtx.state === 'closed') {
+    audioCtx = new AudioContext();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+// Функция звука печатания (мягкий приятный клик)
+function playTypingSound() {
+  if (config.typingSoundEnabled === false) return;
+  
+  try {
+    const ctx = getAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    
+    // Мягкий фильтр для приятного звука
+    filter.type = 'lowpass';
+    filter.frequency.value = 2000;
+    filter.Q.value = 1;
+    
+    oscillator.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    // Мягкий синусоидальный звук
+    oscillator.type = 'sine';
+    oscillator.frequency.value = 400 + Math.random() * 100;
+    
+    // Плавное затухание
+    gainNode.gain.setValueAtTime(0.03, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.08);
+  } catch (e) {}
+}
+
+// Применение темы
+function applyTheme(themeName) {
+  const themes = {
+    dark: { bg: '#000000', fg: '#eee', accent: '#e94560' },
+    light: { bg: '#f5f5f5', fg: '#333', accent: '#e94560' },
+    hacker: { bg: '#0a0a0a', fg: '#00ff00', accent: '#00ff00' },
+    ocean: { bg: '#1a1a2e', fg: '#eee', accent: '#4fc3f7' }
+  };
+  const theme = themes[themeName] || themes.dark;
+  document.body.style.background = theme.bg;
+  config.theme = themeName;
+}
+
+// Применение прозрачности
+function applyOpacity(value) {
+  ipcRenderer.send('set-opacity', value);
+  config.opacity = value;
+}
+
+// Включение/выключение blur
+function toggleBlur(enabled) {
+  if (enabled) {
+    document.body.classList.add('blur-enabled');
+  } else {
+    document.body.classList.remove('blur-enabled');
+  }
+  ipcRenderer.send('set-blur', enabled);
+  config.blurEnabled = enabled;
+}
+
+// Установка фоновой картинки
+function setBgImage(input) {
+  const file = input.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64 = e.target.result;
+      document.body.style.backgroundImage = `url(${base64})`;
+      document.body.classList.add('has-bg-image');
+      config.bgImage = base64;
+      await ipcRenderer.invoke('set-config', { ...config, bgImage: base64 });
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// Удаление фоновой картинки
+async function removeBgImage() {
+  document.body.style.backgroundImage = 'none';
+  document.body.classList.remove('has-bg-image');
+  config.bgImage = null;
+  await ipcRenderer.invoke('set-config', { ...config, bgImage: null });
+}
+
+// Применяем сохранённую картинку при загрузке (или дефолтную)
+function applyBgImage() {
+  // Дефолтный фон Pepe
+  const defaultBg = 'pepe.jpg';
+  
+  if (config.bgImage) {
+    document.body.style.backgroundImage = `url(${config.bgImage})`;
+    document.body.classList.add('has-bg-image');
+  } else {
+    // Используем дефолтный фон
+    document.body.style.backgroundImage = `url(${defaultBg})`;
+    document.body.classList.add('has-bg-image');
+  }
+  
+  // Применяем прозрачность
+  if (config.opacity) {
+    applyOpacity(config.opacity);
+  }
+}
 
 init();

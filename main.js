@@ -52,6 +52,11 @@ function createWindow() {
       contextIsolation: false
     }
   });
+  
+  // Применяем сохранённую прозрачность
+  if (config.opacity && config.opacity < 1) {
+    mainWindow.setOpacity(config.opacity);
+  }
 
   mainWindow.loadFile('index.html');
   Menu.setApplicationMenu(null);
@@ -110,3 +115,10 @@ ipcMain.on('window-maximize', () => {
   else mainWindow.maximize();
 });
 ipcMain.on('window-close', () => mainWindow.close());
+
+// Прозрачность окна
+ipcMain.on('set-opacity', (event, value) => {
+  mainWindow.setOpacity(value);
+  config.opacity = value;
+  saveConfig();
+});

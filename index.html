@@ -18,11 +18,28 @@
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
       background: #000000;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
       color: var(--text);
       height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+    }
+    
+    body.has-bg-image .titlebar {
+      background: rgba(17, 17, 17, 0.85);
+    }
+    
+    body.has-bg-image .terminal-container {
+      background: rgba(0, 0, 0, 0.75);
+    }
+    
+    body.has-bg-image .xterm,
+    body.has-bg-image .xterm-viewport,
+    body.has-bg-image #terminal {
+      background: transparent !important;
     }
     
     .titlebar {
@@ -97,63 +114,135 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0,0,0,0.7);
+      background: rgba(0,0,0,0.85);
       z-index: 100;
       align-items: center;
       justify-content: center;
+      backdrop-filter: blur(5px);
     }
     
     .modal.show { display: flex; }
     
     .modal-content {
-      background: var(--bg-light);
-      border-radius: 12px;
-      padding: 25px;
-      width: 500px;
-      max-height: 80vh;
-      overflow-y: auto;
+      background: #0d0d0d;
+      border: 1px solid #1a1a1a;
+      border-radius: 8px;
+      padding: 30px;
+      width: 320px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
     
     .modal-title {
-      font-size: 18px;
-      margin-bottom: 20px;
-      color: var(--accent);
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 25px;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid #222;
+      padding-bottom: 15px;
     }
     
     .setting-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid #2a2a4a;
+      padding: 15px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    
+    .setting-row:last-of-type {
+      border-bottom: none;
+    }
+    
+    .setting-row span {
+      font-size: 13px;
+      color: #888;
     }
     
     .setting-input {
-      background: var(--bg);
-      border: 1px solid #2a2a4a;
-      color: var(--text);
+      background: #0a0a0a;
+      border: 1px solid #222;
+      color: #fff;
       padding: 8px 12px;
-      border-radius: 6px;
-      width: 150px;
+      border-radius: 4px;
+      width: 80px;
+      font-size: 13px;
+      text-align: center;
     }
     
-    .color-input {
-      width: 50px;
-      height: 35px;
+    .setting-input:focus {
+      outline: none;
+      border-color: #333;
+    }
+    
+    .setting-input[type="range"] {
+      width: 100px;
+      padding: 0;
+      background: transparent;
       border: none;
-      border-radius: 6px;
+      -webkit-appearance: none;
+    }
+    
+    .setting-input[type="range"]::-webkit-slider-track {
+      height: 4px;
+      background: #222;
+      border-radius: 2px;
+    }
+    
+    .setting-input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      margin-top: -5px;
       cursor: pointer;
+    }
+    
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 25px;
     }
     
     .btn-primary {
-      background: var(--accent);
+      flex: 1;
+      background: #fff;
       border: none;
-      color: white;
-      padding: 10px 25px;
-      border-radius: 6px;
+      color: #000;
+      padding: 10px 20px;
+      border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
-      margin-top: 15px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: opacity 0.2s;
+    }
+    
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+    
+    .btn-secondary {
+      flex: 1;
+      background: transparent;
+      border: 1px solid #333;
+      color: #666;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+    
+    .btn-secondary:hover {
+      border-color: #444;
+      color: #888;
     }
   </style>
 </head>
@@ -174,37 +263,19 @@
   
   <div class="modal" id="settingsModal">
     <div class="modal-content">
-      <h2 class="modal-title">⚙️ Настройки</h2>
+      <h2 class="modal-title">Настройки</h2>
       <div class="setting-row">
         <span>Размер шрифта</span>
         <input type="number" class="setting-input" id="fontSize" value="14" min="8" max="32">
       </div>
       <div class="setting-row">
-        <span>Шрифт</span>
-        <select class="setting-input" id="fontFamily">
-          <option value="Consolas">Consolas</option>
-          <option value="Cascadia Code">Cascadia Code</option>
-          <option value="JetBrains Mono">JetBrains Mono</option>
-        </select>
+        <span>Прозрачность</span>
+        <input type="range" class="setting-input" id="opacity" min="0.3" max="1" step="0.05" value="0.85" onchange="applyOpacity(parseFloat(this.value))">
       </div>
-      <div class="setting-row">
-        <span>Курсор</span>
-        <input type="color" class="color-input" id="cursorColor" value="#ffffff">
+      <div class="modal-buttons">
+        <button class="btn-secondary" onclick="closeSettings()">Отмена</button>
+        <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
       </div>
-      <div class="setting-row">
-        <span>Красный (ошибки)</span>
-        <input type="color" class="color-input" id="colorRed" value="#e94560">
-      </div>
-      <div class="setting-row">
-        <span>Зелёный</span>
-        <input type="color" class="color-input" id="colorGreen" value="#4ade80">
-      </div>
-      <div class="setting-row">
-        <span>Пути</span>
-        <input type="color" class="color-input" id="colorYellow" value="#228B22">
-      </div>
-      <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
-      <button class="btn-primary" style="background: #333;" onclick="closeSettings()">Отмена</button>
     </div>
   </div>
   <script src="renderer.js"></script>
