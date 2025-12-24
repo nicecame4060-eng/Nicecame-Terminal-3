@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NiceTerminal</title>
+  <link rel="stylesheet" href="node_modules/xterm/css/xterm.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --bg: #000000;
+      --bg-light: #111111;
+      --accent: #e94560;
+      --text: #eee;
+      --text-dim: #888;
+    }
+    
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #000000;
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .titlebar {
+      height: 32px;
+      background: var(--bg-light);
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    
+    .titlebar-logo {
+      font-weight: bold;
+      font-size: 13px;
+      color: var(--accent);
+      margin-right: 15px;
+    }
+    
+    .titlebar-logo span { color: var(--text); }
+    
+    .spacer {
+      flex: 1;
+    }
+    
+    .window-controls {
+      display: flex;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    
+    .window-btn {
+      width: 12px;
+      height: 12px;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0;
+    }
+    
+    .window-btn.minimize { background: #ffbd2e; }
+    .window-btn.maximize { background: #28c940; }
+    .window-btn.close { background: #ff5f57; }
+    
+    .window-btn:hover { transform: scale(1.1); opacity: 0.8; }
+    
+    .terminal-container {
+      flex: 1;
+      padding: 5px;
+      background: #000000;
+    }
+
+    #terminal {
+      height: 100%;
+      background: #000000;
+    }
+    
+    .xterm { 
+      height: 100%; 
+      background: #000000 !important;
+    }
+    
+    .xterm-viewport {
+      background: #000000 !important;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal.show { display: flex; }
+    
+    .modal-content {
+      background: var(--bg-light);
+      border-radius: 12px;
+      padding: 25px;
+      width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    
+    .modal-title {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: var(--accent);
+    }
+    
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    
+    .setting-input {
+      background: var(--bg);
+      border: 1px solid #2a2a4a;
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      width: 150px;
+    }
+    
+    .color-input {
+      width: 50px;
+      height: 35px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    
+    .btn-primary {
+      background: var(--accent);
+      border: none;
+      color: white;
+      padding: 10px 25px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="titlebar">
+    <div class="titlebar-logo">Nice<span>Terminal</span></div>
+    <div class="spacer"></div>
+    <div class="window-controls">
+      <button class="window-btn minimize" onclick="minimize()"></button>
+      <button class="window-btn maximize" onclick="maximize()"></button>
+      <button class="window-btn close" onclick="closeWin()"></button>
+    </div>
+  </div>
+  
+  <div class="terminal-container">
+    <div id="terminal"></div>
+  </div>
+  
+  <div class="modal" id="settingsModal">
+    <div class="modal-content">
+      <h2 class="modal-title">⚙️ Настройки</h2>
+      <div class="setting-row">
+        <span>Размер шрифта</span>
+        <input type="number" class="setting-input" id="fontSize" value="14" min="8" max="32">
+      </div>
+      <div class="setting-row">
+        <span>Шрифт</span>
+        <select class="setting-input" id="fontFamily">
+          <option value="Consolas">Consolas</option>
+          <option value="Cascadia Code">Cascadia Code</option>
+          <option value="JetBrains Mono">JetBrains Mono</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <span>Курсор</span>
+        <input type="color" class="color-input" id="cursorColor" value="#ffffff">
+      </div>
+      <div class="setting-row">
+        <span>Красный (ошибки)</span>
+        <input type="color" class="color-input" id="colorRed" value="#e94560">
+      </div>
+      <div class="setting-row">
+        <span>Зелёный</span>
+        <input type="color" class="color-input" id="colorGreen" value="#4ade80">
+      </div>
+      <div class="setting-row">
+        <span>Пути</span>
+        <input type="color" class="color-input" id="colorYellow" value="#228B22">
+      </div>
+      <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
+      <button class="btn-primary" style="background: #333;" onclick="closeSettings()">Отмена</button>
+    </div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>
